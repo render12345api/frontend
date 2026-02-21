@@ -2,8 +2,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyJWT } from '@/lib/auth';
 import { deductCredits, recordCreditTransaction, getCampaigns } from '@/lib/db';
 
+export const dynamic = 'force-dynamic';
+
 const RENDER_API_KEY = process.env.RENDER_API_KEY || '';
-const CREDIT_COST_PER_DEPLOYMENT = 10;
+// Credit calculation: 10 credits per 1000 messages
+const CREDITS_PER_1K_MESSAGES = 10;
+
+function calculateCreditsNeeded(messageCount: number): number {
+  return Math.ceil((messageCount / 1000) * CREDITS_PER_1K_MESSAGES);
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -22,7 +29,7 @@ export async function POST(request: NextRequest) {
     
     console.log('[v0] User authenticated:', decoded.userId);
 
-    const { campaignId, renderServiceId } = await request.json();
+    const { campaignId, renderServiceId, messageCount } = await request.json();
 
     if (!campaignId || !renderServiceId) {
       return NextResponse.json(
@@ -30,6 +37,19 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    // Validate message count
+    const messages = Number(messageCount) || 0;
+    if (messages <= 0) {
+      return NextResponse.json(
+        { error: 'Message count must be greater than 0' },
+        { status: 400 }
+      );
+    }
+
+    // Calculate credits needed
+    const creditsNeeded = calculateCreditsNeeded(messages);
+    console.log('[v0] Messages:', messages, 'Credits needed:', creditsNeeded);
 
     // Check if user has enough credits
     const campaigns = await getCampaigns(decoded.userId);
@@ -42,11 +62,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Deduct credits
-    const result = await deductCredits(decoded.userId, CREDIT_COST_PER_DEPLOYMENT);
+    // Deduct credits based on message count
+    const result = await deductCredits(decoded.userId, creditsNeeded);
     if (!result) {
       return NextResponse.json(
-        { error: 'Insufficient credits' },
+        { error: 'Insufficient credits. Required: ' + creditsNeeded },
         { status: 400 }
       );
     }
@@ -54,9 +74,9 @@ export async function POST(request: NextRequest) {
     // Record transaction
     await recordCreditTransaction(
       decoded.userId,
-      CREDIT_COST_PER_DEPLOYMENT,
+      creditsNeeded,
       'deduction',
-      `Campaign deployment: ${campaign.name}`
+      `Campaign deployment: ${campaign.name} (${messages.toLocaleString()} messages)`
     );
 
     // Update campaign status to 'deploying'
@@ -82,10 +102,10 @@ export async function POST(request: NextRequest) {
       if (!renderResponse.ok) {
         console.error('[v0] Render API error:', renderData);
         // Refund credits if deployment fails
-        await deductCredits(decoded.userId, -CREDIT_COST_PER_DEPLOYMENT);
+        await deductCredits(decoded.userId, -creditsNeeded);
         await recordCreditTransaction(
           decoded.userId,
-          CREDIT_COST_PER_DEPLOYMENT,
+          creditsNeeded,
           'purchase',
           `Refund: Deployment failed for ${campaign.name}`
         );
@@ -103,17 +123,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         success: true,
         message: 'Deployment initiated successfully',
-        creditsDeducted: CREDIT_COST_PER_DEPLOYMENT,
+        messageCount: messages,
+        creditsDeducted: creditsNeeded,
         deploymentId: renderData.id
       });
     } catch (renderError) {
       console.error('[v0] Render deployment error:', renderError);
 
       // Refund credits on error
-      await deductCredits(decoded.userId, -CREDIT_COST_PER_DEPLOYMENT);
+      await deductCredits(decoded.userId, -creditsNeeded);
       await recordCreditTransaction(
         decoded.userId,
-        CREDIT_COST_PER_DEPLOYMENT,
+        creditsNeeded,
         'purchase',
         `Refund: Deployment error for ${campaign.name}`
       );

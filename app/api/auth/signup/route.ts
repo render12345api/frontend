@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createUser, getUserByEmail } from '@/lib/db';
 import { hashPassword, generateUserSecret, createJWT } from '@/lib/auth';
 
+export const dynamic = 'force-dynamic';
+
 export async function POST(request: NextRequest) {
   try {
     // Check if database URL is configured
@@ -68,8 +70,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create JWT
-    const token = createJWT(user.id);
+    console.log('[v0] User created successfully with ID:', user.id);
+    // Create JWT - convert ID to string if it's a number
+    const token = createJWT(String(user.id));
 
     const response = NextResponse.json(
       {

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getUserByEmail } from '@/lib/db';
 import { verifyPassword, createJWT } from '@/lib/auth';
 
+export const dynamic = 'force-dynamic';
+
 export async function POST(request: NextRequest) {
   try {
     // Check if database URL is configured
@@ -38,7 +40,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const token = createJWT(user.id);
+    const token = createJWT(String(user.id));
 
     const response = NextResponse.json(
       {

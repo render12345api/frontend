@@ -8,9 +8,13 @@ export default function CreateCampaignPage() {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [renderServiceId, setRenderServiceId] = useState('');
+  const [messageCount, setMessageCount] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const router = useRouter();
+
+  // Calculate credits needed (10 credits per 1000 messages)
+  const creditsNeeded = messageCount ? Math.ceil((Number(messageCount) / 1000) * 10) : 0;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -18,6 +22,10 @@ export default function CreateCampaignPage() {
     setIsLoading(true);
 
     try {
+      if (!messageCount || Number(messageCount) <= 0) {
+        throw new Error('Please enter a valid message count');
+      }
+
       const response = await fetch('/api/campaigns', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -25,6 +33,7 @@ export default function CreateCampaignPage() {
           name,
           description,
           renderServiceId,
+          messageCount: Number(messageCount),
         }),
         credentials: 'include',
       });
@@ -101,10 +110,31 @@ export default function CreateCampaignPage() {
             </p>
           </div>
 
+          {/* Message Count */}
+          <div>
+            <label className="block text-sm font-bold mb-3">Number of Messages</label>
+            <input
+              type="number"
+              value={messageCount}
+              onChange={(e) => setMessageCount(e.target.value)}
+              placeholder="e.g., 5000"
+              min="1"
+              required
+              className="w-full px-4 py-3 rounded-xl bg-background/50 border border-border neumorphic-inset focus:outline-none focus:ring-2 focus:ring-primary/50 transition text-foreground"
+            />
+            <p className="text-xs text-muted-foreground mt-2">
+              Total SMS messages you plan to send in this campaign
+            </p>
+          </div>
+
           {/* Credit Cost Preview */}
           <div className="p-4 bg-primary/5 border border-primary/20 rounded-xl">
-            <div className="text-sm font-medium mb-1">Cost: <span className="text-primary font-bold">10 Credits</span></div>
-            <p className="text-xs text-muted-foreground">Each campaign launch deducts 10 credits from your account</p>
+            <div className="text-sm font-medium mb-1">
+              Cost: <span className="text-primary font-bold">{creditsNeeded || '—'} Credits</span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              10 credits per 1,000 messages • {messageCount ? `${Number(messageCount).toLocaleString()} messages` : 'Enter message count to see cost'}
+            </p>
           </div>
 
           {/* Error Message */}
@@ -136,11 +166,11 @@ export default function CreateCampaignPage() {
         <ol className="space-y-3 text-sm text-muted-foreground">
           <li className="flex gap-3">
             <span className="text-primary font-bold flex-shrink-0">1</span>
-            <span>Fill in your campaign details and Render service ID</span>
+            <span>Fill in your campaign details, Render service ID, and message count</span>
           </li>
           <li className="flex gap-3">
             <span className="text-primary font-bold flex-shrink-0">2</span>
-            <span>We'll deduct 10 credits from your account</span>
+            <span>Credits are calculated based on message count (10 credits per 1,000 messages)</span>
           </li>
           <li className="flex gap-3">
             <span className="text-primary font-bold flex-shrink-0">3</span>

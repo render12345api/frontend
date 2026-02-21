@@ -20,9 +20,9 @@ export default function BillingPage() {
   const [isProcessing, setIsProcessing] = useState(false);
 
   const creditPlans = [
-    { id: 'starter', name: 'Starter', credits: 100, price: 99, usd: true },
-    { id: 'pro', name: 'Pro', credits: 500, price: 399, usd: true, popular: true },
-    { id: 'enterprise', name: 'Enterprise', credits: 2000, price: 1199, usd: true },
+    { id: 'basic', name: 'Basic', messages: 12000, credits: 120, price: 9, currency: '₹', popular: false },
+    { id: 'pro', name: 'Pro', messages: 36000, credits: 360, price: 29, currency: '₹', popular: true },
+    { id: 'enterprise', name: 'Enterprise', messages: 55000, credits: 550, price: 49, currency: '₹', popular: false },
   ];
 
   useEffect(() => {
@@ -57,7 +57,9 @@ export default function BillingPage() {
         body: JSON.stringify({
           planId,
           credits: plan.credits,
+          messages: plan.messages,
           amount: plan.price,
+          currency: plan.currency,
         }),
         credentials: 'include',
       });
@@ -110,17 +112,17 @@ export default function BillingPage() {
                 </div>
               )}
               <h3 className="text-2xl font-bold mb-2">{plan.name}</h3>
-              <div className="text-4xl font-bold mb-1">{plan.credits}</div>
+              <div className="text-4xl font-bold mb-1">{plan.messages.toLocaleString()}</div>
               <div className={`text-sm mb-6 ${plan.popular ? 'text-primary-foreground/80' : 'text-muted-foreground'}`}>
-                Credits
+                Messages
               </div>
 
-              <div className={`text-3xl font-bold mb-6 ${plan.popular ? 'text-primary-foreground' : 'text-primary'}`}>
-                ${plan.price}
+              <div className={`text-3xl font-bold mb-2 ${plan.popular ? 'text-primary-foreground' : 'text-primary'}`}>
+                {plan.currency}{plan.price}
               </div>
 
               <div className={`text-xs mb-6 ${plan.popular ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>
-                ₹{Math.round(plan.price * 83)} (approx)
+                {plan.credits} credits
               </div>
 
               <button

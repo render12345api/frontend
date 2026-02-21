@@ -9,6 +9,7 @@ interface Campaign {
   description: string;
   status: string;
   created_at: string;
+  message_count?: number;
 }
 
 export default function CampaignsPage() {
@@ -90,12 +91,19 @@ export default function CampaignsPage() {
                     </span>
                   </div>
                   <p className="text-muted-foreground text-sm mb-3 line-clamp-2">{campaign.description}</p>
-                  <div className="text-xs text-muted-foreground">
-                    Created {new Date(campaign.created_at).toLocaleDateString('en-US', {
-                      month: 'short',
-                      day: 'numeric',
-                      year: 'numeric'
-                    })}
+                  <div className="flex gap-4 text-xs text-muted-foreground">
+                    <span>
+                      Created {new Date(campaign.created_at).toLocaleDateString('en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                        year: 'numeric'
+                      })}
+                    </span>
+                    {campaign.message_count && (
+                      <span className="text-primary font-semibold">
+                        {campaign.message_count.toLocaleString()} messages
+                      </span>
+                    )}
                   </div>
                 </div>
                 <div className="flex-shrink-0">
