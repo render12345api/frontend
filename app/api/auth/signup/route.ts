@@ -4,6 +4,15 @@ import { hashPassword, generateUserSecret, createJWT } from '@/lib/auth';
 
 export async function POST(request: NextRequest) {
   try {
+    // Check if database URL is configured
+    if (!process.env.DATABASE_URL) {
+      console.error('[v0] DATABASE_URL not configured');
+      return NextResponse.json(
+        { error: 'Server configuration error: DATABASE_URL not set' },
+        { status: 500 }
+      );
+    }
+
     const { email, password, confirmPassword } = await request.json();
 
     // Validation
@@ -28,6 +37,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return NextResponse.json(
+        { error: 'Invalid email format' },
+        { status: 400 }
+      );
+    }
+
     // Check if user exists
     const existingUser = await getUserByEmail(email);
     if (existingUser) {
@@ -41,6 +59,14 @@ export async function POST(request: NextRequest) {
     const passwordHash = await hashPassword(password);
     const userSecret = generateUserSecret();
     const user = await createUser(email, passwordHash, userSecret, 100);
+
+    if (!user || !user.id) {
+      console.error('[v0] User creation returned invalid result:', user);
+      return NextResponse.json(
+        { error: 'Failed to create user account' },
+        { status: 500 }
+      );
+    }
 
     // Create JWT
     const token = createJWT(user.id);
@@ -67,9 +93,28 @@ export async function POST(request: NextRequest) {
 
     return response;
   } catch (error) {
-    console.error('[v0] Signup error:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorStack = error instanceof Error ? error.stack : '';
+    console.error('[v0] Signup error - Message:', errorMessage);
+    console.error('[v0] Signup error - Stack:', errorStack);
+    console.error('[v0] Signup error - Full error:', error);
+    
+    if (errorMessage.includes('ECONNREFUSED') || errorMessage.includes('connect')) {
+      return NextResponse.json(
+        { error: 'Database connection failed. Check DATABASE_URL configuration.' },
+        { status: 500 }
+      );
+    }
+    
+    if (errorMessage.includes('PROTOCOL') || errorMessage.includes('SSL')) {
+      return NextResponse.json(
+        { error: 'Database SSL configuration error. Ensure DATABASE_URL has correct SSL settings.' },
+        { status: 500 }
+      );
+    }
+    
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: 'Failed to create account. Please try again.', details: errorMessage },
       { status: 500 }
     );
   }

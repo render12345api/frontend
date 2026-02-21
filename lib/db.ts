@@ -1,13 +1,38 @@
 import { Pool } from '@neondatabase/serverless';
 
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+if (!process.env.DATABASE_URL) {
+  console.error('[v0] CRITICAL: DATABASE_URL environment variable is not set');
+}
+
+const pool = new Pool({ 
+  connectionString: process.env.DATABASE_URL,
+  ssl: true,
+});
+
+// Test connection on first query
+let connectionTested = false;
 
 export async function query(text: string, params?: unknown[]) {
-  const client = await pool.connect();
   try {
-    return await client.query(text, params);
-  } finally {
-    client.release();
+    if (!connectionTested) {
+      console.log('[v0] Testing database connection...');
+      await pool.query('SELECT 1');
+      connectionTested = true;
+      console.log('[v0] Database connection successful');
+    }
+    
+    const client = await pool.connect();
+    try {
+      console.log('[v0] Executing query:', text.substring(0, 50) + '...');
+      const result = await client.query(text, params);
+      console.log('[v0] Query successful, rows:', result.rowCount);
+      return result;
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    console.error('[v0] Database query error:', error instanceof Error ? error.message : String(error));
+    throw error;
   }
 }
 

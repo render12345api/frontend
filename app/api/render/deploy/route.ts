@@ -7,15 +7,20 @@ const CREDIT_COST_PER_DEPLOYMENT = 10;
 
 export async function POST(request: NextRequest) {
   try {
+    console.log('[v0] Render deploy request started');
     const token = request.cookies.get('auth_token')?.value;
     if (!token) {
+      console.error('[v0] No auth token found');
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
 
     const decoded = verifyJWT(token);
     if (!decoded) {
+      console.error('[v0] Invalid JWT token');
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
+    
+    console.log('[v0] User authenticated:', decoded.userId);
 
     const { campaignId, renderServiceId } = await request.json();
 
@@ -120,9 +125,19 @@ export async function POST(request: NextRequest) {
       );
     }
   } catch (error) {
-    console.error('[v0] Error deploying:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error('[v0] Error deploying:', errorMessage);
+    console.error('[v0] Stack trace:', error instanceof Error ? error.stack : '');
+    
+    if (errorMessage.includes('database') || errorMessage.includes('ECONNREFUSED')) {
+      return NextResponse.json(
+        { error: 'Database connection failed' },
+        { status: 500 }
+      );
+    }
+    
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: 'Internal server error', details: errorMessage },
       { status: 500 }
     );
   }
