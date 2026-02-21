@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getUserByEmail } from '@/lib/db';
+import { getUserByEmail, getDeviceFingerprints, saveDeviceFingerprint, trackUserIP } from '@/lib/db';
 import { verifyPassword, createJWT } from '@/lib/auth';
+import crypto from 'crypto';
 
 export const dynamic = 'force-dynamic';
 
@@ -40,6 +41,35 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Get client IP and user agent for device tracking
+    const ipAddress = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown';
+    const userAgent = request.headers.get('user-agent') || 'unknown';
+    
+    // Generate device fingerprint from browser/device info
+    const fingerprintData = `${userAgent}|${ipAddress}`;
+    const deviceFingerprint = crypto.createHash('sha256').update(fingerprintData).digest('hex');
+    
+    // Extract device info
+    const browserMatch = userAgent.match(/(Chrome|Safari|Firefox|Edge|Opera)\/[\d.]+/) || [];
+    const browser = browserMatch[1] || 'Unknown';
+    const deviceName = userAgent.includes('Mobile') ? 'Mobile' : userAgent.includes('Tablet') ? 'Tablet' : 'Desktop';
+
+    console.log('[v0] Login from IP:', ipAddress, 'Device:', deviceName, 'Browser:', browser);
+
+    // Check if this device is already trusted
+    const existingDevices = await getDeviceFingerprints(user.id);
+    const isNewDevice = !existingDevices.some(d => d.fingerprint === deviceFingerprint);
+    
+    if (isNewDevice) {
+      console.log('[v0] New device detected for user:', user.email);
+      // Save the new device fingerprint
+      await saveDeviceFingerprint(user.id, deviceFingerprint, deviceName, browser);
+      // Return response indicating device verification needed (optional verification step)
+    }
+
+    // Track IP for this login
+    await trackUserIP(user.id, ipAddress, userAgent);
+
     const token = createJWT(String(user.id));
 
     const response = NextResponse.json(
@@ -50,6 +80,13 @@ export async function POST(request: NextRequest) {
           email: user.email,
           credits: user.credits,
         },
+        isNewDevice: isNewDevice,
+        deviceInfo: {
+          fingerprint: deviceFingerprint,
+          browser: browser,
+          deviceType: deviceName,
+          ip: ipAddress,
+        }
       },
       { status: 200 }
     );

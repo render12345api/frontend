@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createUser, getUserByEmail } from '@/lib/db';
+import { createUser, getUserByEmail, trackUserIP, countAccountsByIP } from '@/lib/db';
 import { hashPassword, generateUserSecret, createJWT } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
@@ -48,6 +48,24 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Get client IP
+    const ipAddress = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown';
+    const userAgent = request.headers.get('user-agent') || 'unknown';
+
+    // Check for VPN/Proxy detection (basic check)
+    const vpnKeywords = ['vpn', 'proxy', 'tor', 'hide', 'privacy'];
+    const isVpnLikely = vpnKeywords.some(keyword => userAgent.toLowerCase().includes(keyword));
+
+    // Check if too many accounts from same IP
+    const accountCountFromIP = await countAccountsByIP(ipAddress);
+    if (accountCountFromIP >= 3) {
+      console.log('[v0] Multiple accounts detected from IP:', ipAddress);
+      return NextResponse.json(
+        { error: 'Too many accounts created from this IP address. Please try again later or contact support.' },
+        { status: 429 }
+      );
+    }
+
     // Check if user exists
     const existingUser = await getUserByEmail(email);
     if (existingUser) {
@@ -57,10 +75,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create user
+    // Create user with 5000 free credits
     const passwordHash = await hashPassword(password);
     const userSecret = generateUserSecret();
-    const user = await createUser(email, passwordHash, userSecret, 100);
+    const user = await createUser(email, passwordHash, userSecret, 5000);
 
     if (!user || !user.id) {
       console.error('[v0] User creation returned invalid result:', user);
@@ -71,6 +89,11 @@ export async function POST(request: NextRequest) {
     }
 
     console.log('[v0] User created successfully with ID:', user.id);
+    
+    // Track user IP
+    await trackUserIP(user.id, ipAddress, userAgent);
+    console.log('[v0] IP tracked for user:', ipAddress, 'VPN detected:', isVpnLikely);
+
     // Create JWT - convert ID to string if it's a number
     const token = createJWT(String(user.id));
 

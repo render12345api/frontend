@@ -3,6 +3,7 @@
 import { useAuth } from '@/lib/useAuth';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import DeviceManagement from '@/components/DeviceManagement';
 
 export default function ProfilePage() {
   const { user, logout } = useAuth();
@@ -16,13 +17,17 @@ export default function ProfilePage() {
   };
 
   return (
-    <div className="max-w-2xl space-y-8">
+    <div className="space-y-8">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold mb-2">Profile</h1>
-        <p className="text-muted-foreground">Manage your account settings</p>
+        <h1 className="text-3xl font-bold mb-2">Profile & Security</h1>
+        <p className="text-muted-foreground">Manage your account settings and devices</p>
       </div>
 
+      {/* Device Management Section */}
+      <DeviceManagement />
+
+      <div className="max-w-2xl space-y-8">
       {/* Account Information */}
       <div className="neumorphic-card bg-card">
         <h2 className="text-xl font-bold mb-6">Account Information</h2>
@@ -119,6 +124,7 @@ export default function ProfilePage() {
             {isLoggingOut ? 'Logging out...' : 'Logout'}
           </button>
         </div>
+      </div>
       </div>
     </div>
   );
