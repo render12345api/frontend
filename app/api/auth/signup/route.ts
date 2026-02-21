@@ -76,14 +76,18 @@ export async function POST(request: NextRequest) {
     }
 
     // Create user with 5000 free credits
+    console.log('[v0] Starting user creation for:', email);
     const passwordHash = await hashPassword(password);
+    console.log('[v0] Password hash created');
     const userSecret = generateUserSecret();
+    console.log('[v0] User secret generated, calling createUser...');
     const user = await createUser(email, passwordHash, userSecret, 5000);
+    console.log('[v0] createUser returned:', user);
 
     if (!user || !user.id) {
-      console.error('[v0] User creation returned invalid result:', user);
+      console.error('[v0] User creation failed - returned:', user);
       return NextResponse.json(
-        { error: 'Failed to create user account' },
+        { error: 'Failed to create user account - database error' },
         { status: 500 }
       );
     }
@@ -121,26 +125,37 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     const errorStack = error instanceof Error ? error.stack : '';
-    console.error('[v0] Signup error - Message:', errorMessage);
-    console.error('[v0] Signup error - Stack:', errorStack);
-    console.error('[v0] Signup error - Full error:', error);
+    console.error('[v0] ===== SIGNUP ERROR =====');
+    console.error('[v0] Error Type:', error?.constructor?.name);
+    console.error('[v0] Error Message:', errorMessage);
+    console.error('[v0] Error Stack:', errorStack);
+    console.error('[v0] DATABASE_URL exists:', !!process.env.DATABASE_URL);
+    console.error('[v0] NODE_ENV:', process.env.NODE_ENV);
+    console.error('[v0] ========================');
     
     if (errorMessage.includes('ECONNREFUSED') || errorMessage.includes('connect')) {
       return NextResponse.json(
-        { error: 'Database connection failed. Check DATABASE_URL configuration.' },
+        { error: 'Database connection failed. DATABASE_URL may not be set or database is unreachable.' },
         { status: 500 }
       );
     }
     
     if (errorMessage.includes('PROTOCOL') || errorMessage.includes('SSL')) {
       return NextResponse.json(
-        { error: 'Database SSL configuration error. Ensure DATABASE_URL has correct SSL settings.' },
+        { error: 'Database SSL configuration error.' },
+        { status: 500 }
+      );
+    }
+
+    if (errorMessage.includes('table') || errorMessage.includes('does not exist')) {
+      return NextResponse.json(
+        { error: 'Database schema not initialized. Run migration script.' },
         { status: 500 }
       );
     }
     
     return NextResponse.json(
-      { error: 'Failed to create account. Please try again.', details: errorMessage },
+      { error: 'Failed to create account. Check server logs.' },
       { status: 500 }
     );
   }

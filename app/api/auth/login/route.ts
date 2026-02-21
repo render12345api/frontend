@@ -25,7 +25,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    console.log('[v0] Login attempt for:', email);
     const user = await getUserByEmail(email);
+    console.log('[v0] User lookup returned:', !!user);
     if (!user) {
       return NextResponse.json(
         { error: 'Invalid email or password' },
@@ -33,7 +35,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    console.log('[v0] Verifying password...');
     const isValid = await verifyPassword(password, user.password_hash);
+    console.log('[v0] Password valid:', isValid);
     if (!isValid) {
       return NextResponse.json(
         { error: 'Invalid email or password' },
@@ -103,13 +107,17 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     const errorStack = error instanceof Error ? error.stack : '';
-    console.error('[v0] Login error - Message:', errorMessage);
-    console.error('[v0] Login error - Stack:', errorStack);
-    console.error('[v0] Login error - Full error:', error);
+    console.error('[v0] ===== LOGIN ERROR =====');
+    console.error('[v0] Error Type:', error?.constructor?.name);
+    console.error('[v0] Error Message:', errorMessage);
+    console.error('[v0] Error Stack:', errorStack);
+    console.error('[v0] DATABASE_URL exists:', !!process.env.DATABASE_URL);
+    console.error('[v0] NODE_ENV:', process.env.NODE_ENV);
+    console.error('[v0] ========================');
     
     if (errorMessage.includes('ECONNREFUSED') || errorMessage.includes('connect')) {
       return NextResponse.json(
-        { error: 'Database connection failed. Check DATABASE_URL configuration.' },
+        { error: 'Database connection failed. DATABASE_URL may not be set.' },
         { status: 500 }
       );
     }
@@ -120,9 +128,16 @@ export async function POST(request: NextRequest) {
         { status: 500 }
       );
     }
+
+    if (errorMessage.includes('table') || errorMessage.includes('does not exist')) {
+      return NextResponse.json(
+        { error: 'Database schema not initialized. Run migration script.' },
+        { status: 500 }
+      );
+    }
     
     return NextResponse.json(
-      { error: 'Login failed. Please try again.', details: errorMessage },
+      { error: 'Login failed. Check server logs.' },
       { status: 500 }
     );
   }
