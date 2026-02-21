@@ -36,9 +36,9 @@ export async function query(text: string, params?: unknown[]) {
   }
 }
 
-export async function getUser(userId: string) {
+export async function getUser(userId: string | number) {
   const result = await query('SELECT id, email, credits, created_at FROM users WHERE id = $1', [
-    userId,
+    Number(userId),
   ]);
   return result.rows[0];
 }
@@ -64,65 +64,65 @@ export async function createUser(
   return result.rows[0];
 }
 
-export async function getUserCredits(userId: string) {
-  const result = await query('SELECT credits FROM users WHERE id = $1', [userId]);
+export async function getUserCredits(userId: string | number) {
+  const result = await query('SELECT credits FROM users WHERE id = $1', [Number(userId)]);
   return result.rows[0]?.credits || 0;
 }
 
-export async function deductCredits(userId: string, amount: number) {
+export async function deductCredits(userId: string | number, amount: number) {
   const result = await query(
     'UPDATE users SET credits = credits - $1 WHERE id = $2 AND credits >= $1 RETURNING credits',
-    [amount, userId]
+    [amount, Number(userId)]
   );
   return result.rows[0];
 }
 
-export async function addCredits(userId: string, amount: number) {
+export async function addCredits(userId: string | number, amount: number) {
   const result = await query(
     'UPDATE users SET credits = credits + $1 WHERE id = $2 RETURNING credits',
-    [amount, userId]
+    [amount, Number(userId)]
   );
   return result.rows[0];
 }
 
 export async function createCampaign(
-  userId: string,
+  userId: string | number,
   name: string,
   description: string,
   renderServiceId: string
 ) {
   const result = await query(
     'INSERT INTO campaigns (user_id, name, description, render_service_id, status) VALUES ($1, $2, $3, $4, $5) RETURNING id, name, status, created_at',
-    [userId, name, description, renderServiceId, 'pending']
+    [Number(userId), name, description, renderServiceId, 'pending']
   );
   return result.rows[0];
 }
 
-export async function getCampaigns(userId: string) {
+export async function getCampaigns(userId: string | number) {
   const result = await query(
     'SELECT id, name, description, status, created_at FROM campaigns WHERE user_id = $1 ORDER BY created_at DESC',
-    [userId]
+    [Number(userId)]
   );
   return result.rows;
 }
 
 export async function recordCreditTransaction(
-  userId: string,
+  userId: string | number,
   amount: number,
   type: 'deduction' | 'purchase',
   description: string
 ) {
   const result = await query(
     'INSERT INTO credit_transactions (user_id, amount, transaction_type, description) VALUES ($1, $2, $3, $4) RETURNING id, amount, transaction_type, created_at',
-    [userId, amount, type, description]
+    [Number(userId), amount, type, description]
   );
   return result.rows[0];
 }
 
-export async function getCreditTransactions(userId: string, limit: number = 20) {
+export async function getCreditTransactions(userId: string | number, limit: number = 20) {
   const result = await query(
     'SELECT id, amount, transaction_type, description, created_at FROM credit_transactions WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2',
-    [userId, limit]
+    [Number(userId), limit]
   );
   return result.rows;
 }
