@@ -163,3 +163,97 @@ export async function updateCampaignStatus(campaignId: number, status: string, r
     [status, renderDeploymentId || null, campaignId]
   );
 }
+
+// IP and Device Tracking Functions
+export async function trackUserIP(userId: number | string, ipAddress: string, userAgent: string) {
+  await query(
+    'INSERT INTO ip_tracking (user_id, ip_address, login_count) VALUES ($1, $2, 1) ON CONFLICT (user_id, ip_address) DO UPDATE SET login_count = login_count + 1, last_login = NOW()',
+    [Number(userId), ipAddress]
+  );
+}
+
+export async function getIPsByUser(userId: number | string) {
+  const result = await query(
+    'SELECT ip_address, login_count, last_login FROM ip_tracking WHERE user_id = $1 ORDER BY last_login DESC',
+    [Number(userId)]
+  );
+  return result.rows;
+}
+
+export async function countAccountsByIP(ipAddress: string) {
+  const result = await query(
+    'SELECT COUNT(DISTINCT user_id) as account_count FROM ip_tracking WHERE ip_address = $1',
+    [ipAddress]
+  );
+  return parseInt(result.rows[0]?.account_count || 0);
+}
+
+// Device Fingerprint Functions
+export async function saveDeviceFingerprint(userId: number | string, fingerprint: string, deviceName: string, browser: string) {
+  await query(
+    `INSERT INTO device_fingerprints (user_id, fingerprint, device_name, browser) 
+     VALUES ($1, $2, $3, $4) 
+     ON CONFLICT (user_id, fingerprint) DO UPDATE 
+     SET last_used = NOW()`,
+    [Number(userId), fingerprint, deviceName, browser]
+  );
+}
+
+export async function getDeviceFingerprints(userId: number | string) {
+  const result = await query(
+    'SELECT fingerprint, device_name, browser, is_trusted, last_used FROM device_fingerprints WHERE user_id = $1 ORDER BY last_used DESC',
+    [Number(userId)]
+  );
+  return result.rows;
+}
+
+// Transaction History Functions
+export async function recordTransaction(
+  userId: number | string,
+  transactionType: 'launch' | 'purchase' | 'refund',
+  creditsAmount: number,
+  phoneNumber?: string,
+  messageCount?: number,
+  ipAddress?: string,
+  description?: string
+) {
+  const result = await query(
+    `INSERT INTO transactions (user_id, transaction_type, credits_amount, phone_number, message_count, ip_address, description)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)
+     RETURNING id, created_at`,
+    [Number(userId), transactionType, creditsAmount, phoneNumber || null, messageCount || null, ipAddress || null, description || null]
+  );
+  return result.rows[0];
+}
+
+export async function getTransactionHistory(userId: number | string, limit: number = 50) {
+  const result = await query(
+    `SELECT id, transaction_type, credits_amount, phone_number, message_count, status, description, created_at
+     FROM transactions 
+     WHERE user_id = $1 
+     ORDER BY created_at DESC 
+     LIMIT $2`,
+    [Number(userId), limit]
+  );
+  return result.rows;
+}
+
+// Admin Blocking Functions
+export async function blockPhoneNumber(phoneNumber: string, reason: string, addedByUserId?: number) {
+  await query(
+    'INSERT INTO blacklist (phone, reason, added_by) VALUES ($1, $2, $3) ON CONFLICT (phone) DO NOTHING',
+    [phoneNumber, reason, addedByUserId || null]
+  );
+}
+
+export async function unblockPhoneNumber(phoneNumber: string) {
+  await query('DELETE FROM blacklist WHERE phone = $1', [phoneNumber]);
+}
+
+export async function getBlockedNumbers(limit: number = 100) {
+  const result = await query(
+    'SELECT phone, reason, added_by, created_at FROM blacklist ORDER BY created_at DESC LIMIT $1',
+    [limit]
+  );
+  return result.rows;
+}

@@ -4,7 +4,10 @@ CREATE TABLE IF NOT EXISTS users (
   email VARCHAR(255) UNIQUE NOT NULL,
   password_hash VARCHAR(255) NOT NULL,
   user_secret VARCHAR(255) UNIQUE NOT NULL,
-  credits INT DEFAULT 100,
+  credits INT DEFAULT 5000,
+  signup_ip VARCHAR(45),
+  user_agent TEXT,
+  is_vpn_detected BOOLEAN DEFAULT FALSE,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -86,3 +89,51 @@ CREATE TABLE IF NOT EXISTS rate_log (
 
 CREATE INDEX IF NOT EXISTS idx_rate_log_key_hash ON rate_log(key_hash);
 CREATE INDEX IF NOT EXISTS idx_rate_log_hit_at ON rate_log(hit_at);
+
+-- IP tracking table to prevent multiple accounts from same IP
+CREATE TABLE IF NOT EXISTS ip_tracking (
+  id SERIAL PRIMARY KEY,
+  user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  ip_address VARCHAR(45) NOT NULL,
+  login_count INT DEFAULT 1,
+  last_login TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(user_id, ip_address)
+);
+
+CREATE INDEX IF NOT EXISTS idx_ip_tracking_ip ON ip_tracking(ip_address);
+CREATE INDEX IF NOT EXISTS idx_ip_tracking_user_id ON ip_tracking(user_id);
+
+-- Device fingerprint tracking
+CREATE TABLE IF NOT EXISTS device_fingerprints (
+  id SERIAL PRIMARY KEY,
+  user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  fingerprint VARCHAR(255) NOT NULL,
+  device_name VARCHAR(255),
+  browser VARCHAR(255),
+  is_trusted BOOLEAN DEFAULT FALSE,
+  last_used TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(user_id, fingerprint)
+);
+
+CREATE INDEX IF NOT EXISTS idx_fingerprints_user_id ON device_fingerprints(user_id);
+CREATE INDEX IF NOT EXISTS idx_fingerprints_fingerprint ON device_fingerprints(fingerprint);
+
+-- Transaction history table (enhanced)
+CREATE TABLE IF NOT EXISTS transactions (
+  id SERIAL PRIMARY KEY,
+  user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  transaction_type VARCHAR(50) NOT NULL, -- 'launch', 'purchase', 'refund'
+  credits_amount INT NOT NULL,
+  phone_number VARCHAR(20),
+  message_count INT,
+  status VARCHAR(50) DEFAULT 'success',
+  ip_address VARCHAR(45),
+  description TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_transactions_user_id ON transactions(user_id);
+CREATE INDEX IF NOT EXISTS idx_transactions_created_at ON transactions(created_at);
+CREATE INDEX IF NOT EXISTS idx_transactions_type ON transactions(transaction_type);
